@@ -1,0 +1,21 @@
+{
+  "name": "daily-quiz-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telegram bot gửi 6 câu trắc nghiệm kỹ thuật mỗi ngày (Gemini + Vercel + Upstash Redis)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "simulate": "node scripts/simulate.js",
+    "dry-run": "node --env-file=.env scripts/dry-run.js",
+    "set-webhook": "node --env-file=.env scripts/set-webhook.js",
+    "send-test": "node --env-file=.env scripts/send-test.js",
+    "local-bot": "node --env-file=.env scripts/local-bot.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.24.0",
+    "@upstash/redis": "^1.39.0"
+  }
+}

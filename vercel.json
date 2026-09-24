@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/**/*.js": { "maxDuration": 300 }
+  },
+  "crons": [
+    { "path": "/api/cron/send/0", "schedule": "0 1 * * *" },
+    { "path": "/api/cron/send/1", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/send/2", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/send/3", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/send/4", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/send/5", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/reveal", "schedule": "0 16 * * *" }
+  ]
+}
