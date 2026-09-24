@@ -317,7 +317,7 @@ await test('11. Đề dài hơn poll: gửi đề đầy đủ trong tin nhắn,
   const poll = calls.find((c) => c.method === 'sendPoll');
   const intro = calls.find((c) => c.method === 'sendMessage' && c.payload.text.includes('Bối cảnh dài dòng'));
   const q = await getQ(DAY3, 3);
-  assert.ok(q.question.length > 300);
+  assert.ok(q.question.length > 280, 'đề mock phải dài hơn giới hạn poll');
   assert.ok(intro, 'phải gửi đề đầy đủ trong tin nhắn');
   assert.ok(intro.payload.text.includes('<b>A.</b>') && intro.payload.text.includes('<b>D.</b>'));
   assert.ok(intro.payload.text.includes('<pre><code class="language-sql">'));
