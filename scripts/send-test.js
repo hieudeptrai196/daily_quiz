@@ -7,13 +7,14 @@ delete process.env.TELEGRAM_MOCK;
 delete process.env.GEMINI_MOCK;
 
 const { TOPICS, getChatId, getModelLabel, getTopic } = await import('../lib/config.js');
+const { dayKey } = await import('../lib/time.js');
 const { sendQuestion } = await import('../lib/quiz.js');
 
 const arg = process.argv.slice(2).find((a) => !a.startsWith('--'));
-const topic = arg ? getTopic(arg) : null;
+const topic = arg ? getTopic(arg, dayKey()) : null;
 if (!topic) {
   console.log('Cách dùng: npm run send-test -- <topicKey|slot>');
-  console.log(`topicKey: ${TOPICS.map((t) => `${t.key} (${t.slot})`).join(', ')}`);
+  console.log(`topicKey: ${TOPICS.map((t) => t.key).join(', ')} (hoặc số slot)`);
   process.exit(1);
 }
 if (!getChatId()) {
@@ -22,7 +23,7 @@ if (!getChatId()) {
 }
 
 console.log(`Gửi câu ${topic.emoji} ${topic.name} vào chat ${getChatId()} (model ${getModelLabel()})...`);
-const result = await sendQuestion(topic.slot);
+const result = await sendQuestion(topic.slot, { topic });
 console.log(result.ok ? '✅ Đã gửi, mở Telegram để xem.' : '❌ Gửi lỗi, xem log ở trên.');
 console.log(JSON.stringify(result));
 process.exit(result.ok ? 0 : 1);
