@@ -21,6 +21,7 @@
     { "path": "/api/cron/send/12", "schedule": "0 11 * * *" },
     { "path": "/api/cron/send/13", "schedule": "0 12 * * *" },
     { "path": "/api/cron/send/14", "schedule": "0 13 * * *" },
+    { "path": "/api/cron/send/15", "schedule": "0 14 * * *" },
     { "path": "/api/cron/reveal", "schedule": "0 16 * * *" }
   ]
 }
