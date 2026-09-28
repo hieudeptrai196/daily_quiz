@@ -12,17 +12,19 @@ Telegram bot cho một group 4 người. Mỗi ngày gửi 11 câu trắc nghi�
 | Giờ | Chủ đề |
 |---|---|
 | 08:00 | 🧮 Thuật toán & CTDL |
-| 09:00 | ☁️ Cloud & Serverless |
-| 10:00 | 🛠️ DevOps |
+| 09:00 | ☁️ Cloud & Serverless ⇄ 🤖 AI cho Developer |
+| 10:00 | 🛠️ DevOps ⇄ 🐧 Linux & Shell |
 | 11:00 | ⚡ Redis & Caching |
 | 12:00 | 🏗️ Solution / System Design |
 | 13:00 | 📨 Message Queue & Event-driven |
 | 14:00 | 🗄️ Database |
-| 15:00 | 🧪 Testing & Code Quality |
+| 15:00 | 🧪 Testing & Code Quality ⇄ 🌿 Git & Teamwork |
 | 16:00 | 🔐 Backend / Network / Security |
-| 17:00 | 🧩 OOP & Design Pattern |
+| 17:00 | 🧩 OOP & Design Pattern ⇄ 🔀 Concurrency & Đa luồng |
 | 18:00 | 🎨 Frontend |
 | 23:00 | Công bố đáp án bắt buộc |
+
+⇄ = các chủ đề cùng giờ **đổi luân phiên theo ngày** (ngày này chủ đề trái, ngày sau chủ đề phải).
 
 > Cron của Vercel Hobby chỉ chính xác theo giờ: job 08:00 có thể chạy bất kỳ lúc nào từ 08:00 tới 08:59.
 
@@ -136,10 +138,10 @@ Harness chạy offline (mock Telegram, Redis trong bộ nhớ, Gemini giả) và
 ```bash
 npm run dry-run -- dsa
 ```
-Sinh thử 1 câu bằng LLM thật, **ẩn đáp án**. Topic key: `dsa`, `cloud`, `devops`, `redis`, `design`, `mq`, `db`, `testing`, `backend`, `oop`, `frontend` (hoặc số slot 0-10). Thêm `--show` để xem đáp án và giải thích. Không gửi Telegram, không ghi Redis.
+Sinh thử 1 câu bằng LLM thật, **ẩn đáp án**. Topic key: `dsa`, `cloud`, `ai`, `devops`, `linux`, `redis`, `design`, `mq`, `db`, `testing`, `git`, `backend`, `oop`, `concurrency`, `frontend` (hoặc số slot 0-10: chủ đề của slot đó hôm nay). Thêm `--show` để xem đáp án và giải thích. Không gửi Telegram, không ghi Redis.
 
 ## Lưu ý
-- **Thêm / bớt / đổi giờ chủ đề**: sửa `TOPICS` trong `lib/config.js` (mỗi chủ đề 1 `hour` riêng) rồi sửa `crons` trong `vercel.json` cho khớp (cron UTC = giờ VN − 7). `npm run simulate` sẽ báo lỗi nếu 2 file không khớp.
+- **Thêm / bớt / đổi giờ chủ đề**: sửa `TOPICS` trong `lib/config.js`. Mỗi chủ đề có `hour` (giờ VN); nhiều chủ đề cùng `hour` sẽ xoay vòng theo ngày, không tăng số câu. Nếu thêm giờ mới thì thêm cron trong `vercel.json` (cron UTC = giờ VN − 7); `npm run simulate` sẽ báo lỗi nếu 2 file không khớp.
 - **Cron Hobby có thể lệch trong vòng 1 giờ** so với giờ đặt.
 - **Đừng mở Redis (Upstash console) trong ngày** nếu bạn cũng chơi: đáp án nằm trong key `quiz:<ngày>:q:<slot>`. Code không log đáp án ở bất kỳ đâu trước khi công bố.
 - Mỗi câu tốn 2–10 lần gọi LLM (sinh đề + kiểm tra chéo, tối đa 5 lần thử trong 240 giây). Free tier của Groq giới hạn ~8000 token/phút cho `gpt-oss-120b`; bot tự đợi theo `retry-after` khi bị 429, xoay sang key khác, rồi sang model dự phòng. Quota free: 8K token/phút và 200K token/ngày cho mỗi model, tính theo tài khoản Groq.

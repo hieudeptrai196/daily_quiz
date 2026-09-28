@@ -39,7 +39,7 @@ delete process.env.GEMINI_MOCK_FAIL_TOPIC;
 const out = (s) => process.stdout.write(`${s}\n`);
 if (QUIET) console.log = () => {};
 
-const { TOPICS } = await import('../lib/config.js');
+const { TOPICS, SLOT_HOURS, QUESTIONS_PER_DAY, getTopic, topicFor, topicsForDay, topicsOfSlot } = await import('../lib/config.js');
 const { getStore } = await import('../lib/store.js');
 const { mock } = await import('../lib/telegram.js');
 const quiz = await import('../lib/quiz.js');
@@ -51,12 +51,14 @@ const DAY1 = '2026-09-21';
 const DAY2 = '2026-09-22'; // cùng tuần ISO với DAY1
 const WEEK = weekKey(DAY1);
 
-// Số câu / slot lấy từ TOPICS để harness không phụ thuộc số chủ đề
-const N = TOPICS.length;
-const ALL = TOPICS.map((t) => t.slot);
+// Số câu / slot lấy từ config để harness không phụ thuộc số chủ đề
+const N = QUESTIONS_PER_DAY;
+const ALL = [...Array(N).keys()];
 const LAST = N - 1;
-const slotOf = (key) => TOPICS.find((t) => t.key === key).slot;
-const DEVOPS = slotOf('devops'); // chủ đề dùng để mô phỏng lỗi
+const slotOf = (key) => getTopic(key).slot;
+const DEVOPS = slotOf('devops'); // slot dùng để mô phỏng lỗi (DevOps / Linux luân phiên)
+// Chủ đề của slot DEVOPS trong ngày đó: mock sẽ trả dữ liệu hỏng cho chủ đề này
+const failKey = (day) => topicFor(day, DEVOPS).key;
 const DB = slotOf('db');
 const WITHOUT_DEVOPS = ALL.filter((s) => s !== DEVOPS);
 const sortedSlots = async (key) => (await store.smembers(key)).map(Number).sort((a, b) => a - b);
@@ -98,22 +100,23 @@ async function assertNoLeak(day, slots) {
 mock.reset();
 
 await test(`1. Gửi đủ ${N} câu cho một ngày cố định`, async () => {
-  for (const t of TOPICS) {
-    const r = await sendQuestion(t.slot, { day: DAY1 });
-    assert.equal(r.ok, true, `slot ${t.slot} phải gửi được`);
-    assert.ok(!r.skipped, `slot ${t.slot} không được skip`);
+  for (const slot of ALL) {
+    const r = await sendQuestion(slot, { day: DAY1 });
+    assert.equal(r.ok, true, `slot ${slot} phải gửi được`);
+    assert.ok(!r.skipped, `slot ${slot} không được skip`);
     assert.ok(!('correctIndex' in r), 'kết quả sendQuestion không được chứa đáp án');
   }
   assert.equal(callsOf('sendPoll').length, N);
   assert.deepEqual(await sortedSlots(keys.sent(DAY1)), ALL);
-  for (const t of TOPICS) {
-    const q = await getQ(DAY1, t.slot);
-    assert.ok(q && q.pollId, `thiếu q:${t.slot}`);
+  for (const slot of ALL) {
+    const q = await getQ(DAY1, slot);
+    assert.ok(q && q.pollId, `thiếu q:${slot}`);
+    assert.equal(q.topic, topicFor(DAY1, slot).key, 'câu phải thuộc chủ đề theo lịch của ngày');
     assert.equal(q.options.length, 4);
     assert.ok(Number.isInteger(Number(q.correctIndex)));
     const ref = await store.get(keys.poll(q.pollId));
     assert.equal(String(ref.day), DAY1);
-    assert.equal(Number(ref.slot), t.slot);
+    assert.equal(Number(ref.slot), slot);
   }
   for (const c of callsOf('sendPoll')) {
     assert.ok(c.payload.question.length <= 300);
@@ -223,16 +226,16 @@ await test('7. Vote sau reveal bị bỏ qua; force reveal lần nữa không c�
 // ================= NGÀY 2: chủ đề devops lỗi =================
 mock.reset();
 
-await test('8. Ngày có GEMINI_MOCK_FAIL_TOPIC=devops: câu DevOps lỗi, 3/4 người làm đủ thì chưa reveal', async () => {
+await test(`8. Ngày có GEMINI_MOCK_FAIL_TOPIC=${failKey(DAY2)}: câu đó lỗi, 3/4 người làm đủ thì chưa reveal`, async () => {
   if (REAL) {
     out('   (bỏ qua ép lỗi ở chế độ --real, mô phỏng lỗi bằng mock)');
     process.env.GEMINI_MOCK = '1';
   }
-  process.env.GEMINI_MOCK_FAIL_TOPIC = 'devops';
+  process.env.GEMINI_MOCK_FAIL_TOPIC = failKey(DAY2);
   try {
-    for (const t of TOPICS) {
-      const r = await sendQuestion(t.slot, { day: DAY2 });
-      if (t.key === 'devops') assert.equal(r.failed, true);
+    for (const slot of ALL) {
+      const r = await sendQuestion(slot, { day: DAY2 });
+      if (slot === DEVOPS) assert.equal(r.failed, true);
       else assert.equal(r.ok, true);
     }
   } finally {
@@ -298,7 +301,7 @@ const withMock = async (env, fn) => {
 mock.reset();
 
 await test('10. Câu lỗi được thử lại ở lượt gửi sau', async () => {
-  await withMock({ GEMINI_MOCK_FAIL_TOPIC: 'devops' }, async () => {
+  await withMock({ GEMINI_MOCK_FAIL_TOPIC: failKey(DAY3) }, async () => {
     assert.equal((await sendQuestion(0, { day: DAY3 })).ok, true);
     assert.equal((await sendQuestion(DEVOPS, { day: DAY3 })).failed, true);
   });
@@ -339,12 +342,37 @@ await test('12. vercel.json có đủ cron gửi câu đúng giờ của từng 
   const { readFileSync } = await import('node:fs');
   const crons = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')).crons;
   const expected = [
-    ...TOPICS.map((t) => ({ path: `/api/cron/send/${t.slot}`, schedule: `0 ${t.hour - 7} * * *` })),
+    ...SLOT_HOURS.map((h, slot) => ({ path: `/api/cron/send/${slot}`, schedule: `0 ${h - 7} * * *` })),
     { path: '/api/cron/reveal', schedule: '0 16 * * *' },
   ];
   assert.deepEqual(crons, expected);
-  assert.equal(new Set(TOPICS.map((t) => t.hour)).size, N, 'mỗi chủ đề 1 giờ riêng');
-  TOPICS.forEach((t, i) => assert.equal(t.slot, i, 'slot phải bằng vị trí trong TOPICS'));
+});
+
+await test('13. Chủ đề cùng giờ xoay vòng theo ngày, chủ đề nào cũng có lượt', async () => {
+  assert.equal(new Set(TOPICS.map((t) => t.key)).size, TOPICS.length, 'key chủ đề không được trùng');
+  const days = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03'];
+  const seen = new Set();
+  for (const d of days) {
+    const list = topicsForDay(d);
+    assert.equal(list.length, N);
+    list.forEach((t, slot) => {
+      assert.equal(t.slot, slot);
+      assert.equal(t.hour, SLOT_HOURS[slot]);
+      seen.add(t.key);
+    });
+  }
+  assert.deepEqual([...seen].sort(), TOPICS.map((t) => t.key).sort(), 'trong vài ngày mọi chủ đề đều phải xuất hiện');
+  for (let slot = 0; slot < N; slot++) {
+    const group = topicsOfSlot(slot);
+    if (group.length < 2) continue;
+    assert.notEqual(topicFor(days[0], slot).key, topicFor(days[1], slot).key, `slot ${slot} phải đổi chủ đề giữa 2 ngày liên tiếp`);
+  }
+  // DAY2 và DAY3 liên tiếp: câu thật sự gửi ở slot DevOps phải thuộc 2 chủ đề khác nhau (DevOps ⇄ Linux)
+  const q2 = await getQ(DAY2, DEVOPS);
+  const q3 = await getQ(DAY3, DEVOPS);
+  assert.equal(q3.topic, topicFor(DAY3, DEVOPS).key);
+  if (q2) assert.notEqual(q2.topic, q3.topic);
+  assert.notEqual(failKey(DAY2), failKey(DAY3), 'slot DevOps phải đổi chủ đề giữa DAY2 và DAY3');
 });
 
 const failed = results.filter((ok) => !ok).length;

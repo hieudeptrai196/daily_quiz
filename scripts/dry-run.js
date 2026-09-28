@@ -2,16 +2,17 @@
 //   npm run dry-run -- <topicKey|slot> [--show]
 // Mặc định ẨN đáp án và giải thích; thêm --show để xem.
 import { TOPICS, getModelLabel, getTopic } from '../lib/config.js';
+import { dayKey } from '../lib/time.js';
 import { generateVerifiedQuestion, LETTERS } from '../lib/gemini.js';
 
 const argv = process.argv.slice(2);
 const show = argv.includes('--show');
 const topicArg = argv.find((a) => !a.startsWith('--'));
-const topic = topicArg ? getTopic(topicArg) : null;
+const topic = topicArg ? getTopic(topicArg, dayKey()) : null;
 
 if (!topic) {
   console.log('Cách dùng: npm run dry-run -- <topicKey|slot> [--show]');
-  console.log(`topicKey: ${TOPICS.map((t) => `${t.key} (${t.slot})`).join(', ')}`);
+  console.log(`topicKey: ${TOPICS.map((t) => t.key).join(', ')} (hoặc số slot: chủ đề của slot đó hôm nay)`);
   process.exit(1);
 }
 

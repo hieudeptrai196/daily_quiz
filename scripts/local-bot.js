@@ -15,7 +15,7 @@ const argValue = (name) => {
   return i === -1 ? null : argv[i + 1];
 };
 
-const { TOPICS, getAdminIds, getChatId, getMembers, getModelLabel } = await import('../lib/config.js');
+const { QUESTIONS_PER_DAY, getAdminIds, getChatId, getMembers, getModelLabel } = await import('../lib/config.js');
 
 // ----- Người chơi: mặc định chỉ admin đầu tiên -----
 if (!argv.includes('--all-members')) {
@@ -32,10 +32,10 @@ if (!getChatId()) {
   process.exit(1);
 }
 
-const slots = (argValue('--slots') ?? TOPICS.map((t) => t.slot).join(','))
+const slots = (argValue('--slots') ?? [...Array(QUESTIONS_PER_DAY).keys()].join(','))
   .split(',')
   .map(Number)
-  .filter((n) => Number.isInteger(n) && n >= 0 && n < TOPICS.length);
+  .filter((n) => Number.isInteger(n) && n >= 0 && n < QUESTIONS_PER_DAY);
 
 const { tg } = await import('../lib/telegram.js');
 const { handlePollAnswer, retryFailedSlots, sendQuestion } = await import('../lib/quiz.js');
@@ -50,7 +50,7 @@ if (info.url) {
 
 console.log(`Model: ${getModelLabel()} — chat ${getChatId()} — ngày ${dayKey()}`);
 console.log(`Người chơi: ${getMembers().map((m) => m.name).join(', ')}`);
-console.log(`Sẽ gửi câu: ${slots.map((s) => s + 1).join(', ')}${slots.length < TOPICS.length ? " (chưa đủ câu → dùng /reveal để công bố)" : ''}`);
+console.log(`Sẽ gửi câu: ${slots.map((s) => s + 1).join(', ')}${slots.length < QUESTIONS_PER_DAY ? " (chưa đủ câu → dùng /reveal để công bố)" : ''}`);
 console.log('Lệnh trong group: /status /reveal /help — Ctrl+C để dừng.\n');
 
 // Bỏ qua update cũ
