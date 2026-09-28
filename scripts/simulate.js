@@ -196,7 +196,7 @@ await test('6. Vote cuối cùng thì tự reveal', async () => {
   assert.equal(reveal.length, 1);
   assert.ok(!reveal[0].payload.text.includes('(hết giờ)'));
   const allText = callsOf('sendMessage').map((c) => c.payload.text).join('\n');
-  assert.ok(allText.includes(`🥇 Hiếu: ${N}/${N}`));
+  assert.ok(allText.includes(`🥇 <a href="tg://user?id=1001">Hiếu</a>: ${N}/${N}`), 'bảng điểm phải tag thành viên');
   assert.ok(allText.includes(`Tổng tuần ${WEEK}`));
   for (const c of callsOf('sendMessage')) assert.ok(c.payload.text.length <= 4096);
   const score = await store.hgetall(keys.score(WEEK));
@@ -260,7 +260,7 @@ await test('8. Ngày có GEMINI_MOCK_FAIL_TOPIC=devops: câu DevOps lỗi, 3/4 n
   assert.equal(await store.get(keys.revealed(DAY2)), null);
   const progress = callsOf('editMessageText').at(-1)?.payload.text || '';
   assert.ok(progress.includes(`⚠️ Bỏ qua câu: ${DEVOPS + 1}`));
-  assert.ok(progress.includes(`⏳ Chi: 0/${N - 1}`));
+  assert.ok(progress.includes(`⏳ <a href="tg://user?id=1004">Chi</a>: 0/${N - 1}`), 'tiến độ phải tag thành viên');
   await assertNoLeak(DAY2, WITHOUT_DEVOPS);
 });
 
