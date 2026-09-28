@@ -1,6 +1,6 @@
 # Daily Quiz Bot 🧠
 
-Telegram bot cho một group 4 người. Mỗi ngày gửi 6 câu trắc nghiệm kỹ thuật (A/B/C/D) do LLM sinh ra (mặc định Groq `openai/gpt-oss-120b`, có thể đổi sang Gemini). Đáp án **chỉ** được công bố khi cả 4 người đã làm đủ các câu, muộn nhất lúc 23:00 (giờ VN).
+Telegram bot cho một group 4 người. Mỗi ngày gửi 11 câu trắc nghiệm kỹ thuật (mỗi giờ 1 chủ đề, 8h–18h) (A/B/C/D) do LLM sinh ra (mặc định Groq `openai/gpt-oss-120b`, có thể đổi sang Gemini). Đáp án **chỉ** được công bố khi cả 4 người đã làm đủ các câu, muộn nhất lúc 23:00 (giờ VN).
 
 - Chạy trên Vercel Serverless Functions (Hobby, miễn phí) + Vercel Cron
 - Lưu trạng thái trên Upstash Redis (free)
@@ -12,10 +12,15 @@ Telegram bot cho một group 4 người. Mỗi ngày gửi 6 câu trắc nghiệ
 | Giờ | Chủ đề |
 |---|---|
 | 08:00 | 🧮 Thuật toán & CTDL |
+| 09:00 | ☁️ Cloud & Serverless |
 | 10:00 | 🛠️ DevOps |
+| 11:00 | ⚡ Redis & Caching |
 | 12:00 | 🏗️ Solution / System Design |
+| 13:00 | 📨 Message Queue & Event-driven |
 | 14:00 | 🗄️ Database |
+| 15:00 | 🧪 Testing & Code Quality |
 | 16:00 | 🔐 Backend / Network / Security |
+| 17:00 | 🧩 OOP & Design Pattern |
 | 18:00 | 🎨 Frontend |
 | 23:00 | Công bố đáp án bắt buộc |
 
@@ -25,7 +30,7 @@ Telegram bot cho một group 4 người. Mỗi ngày gửi 6 câu trắc nghiệ
 
 ```
 api/telegram.js            # webhook (poll_answer + lệnh)
-api/cron/send/[slot].js    # cron gửi câu hỏi slot 0..5
+api/cron/send/[slot].js    # cron gửi câu hỏi slot 0..10
 api/cron/reveal.js         # cron 23h công bố bắt buộc
 lib/                       # config, time, auth, store, telegram, prompts, gemini (sinh + kiểm tra đề), groq, quiz, commands
 scripts/set-webhook.js     # đăng ký webhook + lệnh
@@ -126,17 +131,18 @@ Công bố ngay: gõ `/reveal` trong group (chỉ admin) hoặc gọi `/api/cron
 ```bash
 npm run simulate
 ```
-Harness chạy offline (mock Telegram, Redis trong bộ nhớ, Gemini giả) và kiểm tra cả ngày: gửi 6 câu, chống gửi trùng, chỉ tính vote đầu, tự công bố, câu lỗi, công bố bắt buộc 23h. Thêm `--quiet` để chỉ in kết quả, `--real` để dùng LLM thật (cần `GROQ_API_KEY` hoặc `GEMINI_API_KEY` trong `.env`).
+Harness chạy offline (mock Telegram, Redis trong bộ nhớ, Gemini giả) và kiểm tra cả ngày: gửi đủ các câu, chống gửi trùng, chỉ tính vote đầu, tự công bố, câu lỗi, công bố bắt buộc 23h. Thêm `--quiet` để chỉ in kết quả, `--real` để dùng LLM thật (cần `GROQ_API_KEY` hoặc `GEMINI_API_KEY` trong `.env`).
 
 ```bash
 npm run dry-run -- dsa
 ```
-Sinh thử 1 câu bằng LLM thật, **ẩn đáp án**. Topic key: `dsa`, `devops`, `design`, `db`, `backend`, `frontend` (hoặc số slot 0-5). Thêm `--show` để xem đáp án và giải thích. Không gửi Telegram, không ghi Redis.
+Sinh thử 1 câu bằng LLM thật, **ẩn đáp án**. Topic key: `dsa`, `cloud`, `devops`, `redis`, `design`, `mq`, `db`, `testing`, `backend`, `oop`, `frontend` (hoặc số slot 0-10). Thêm `--show` để xem đáp án và giải thích. Không gửi Telegram, không ghi Redis.
 
 ## Lưu ý
+- **Thêm / bớt / đổi giờ chủ đề**: sửa `TOPICS` trong `lib/config.js` (mỗi chủ đề 1 `hour` riêng) rồi sửa `crons` trong `vercel.json` cho khớp (cron UTC = giờ VN − 7). `npm run simulate` sẽ báo lỗi nếu 2 file không khớp.
 - **Cron Hobby có thể lệch trong vòng 1 giờ** so với giờ đặt.
 - **Đừng mở Redis (Upstash console) trong ngày** nếu bạn cũng chơi: đáp án nằm trong key `quiz:<ngày>:q:<slot>`. Code không log đáp án ở bất kỳ đâu trước khi công bố.
 - Mỗi câu tốn 2–10 lần gọi LLM (sinh đề + kiểm tra chéo, tối đa 5 lần thử trong 240 giây). Free tier của Groq giới hạn ~8000 token/phút cho `gpt-oss-120b`; bot tự đợi theo `retry-after` khi bị 429, xoay sang key khác, rồi sang model dự phòng. Quota free: 8K token/phút và 200K token/ngày cho mỗi model, tính theo tài khoản Groq.
 - Đề dài hơn giới hạn poll của Telegram vẫn dùng được: bot gửi đề + code + 4 đáp án trong 1 tin nhắn, poll chỉ để chọn A/B/C/D.
-- Nếu cả 5 lần thử đều hỏng, bot báo "⚠️ Câu n hôm nay tạo lỗi, bot sẽ thử lại ở lượt gửi sau": cron của lượt sau gửi câu của nó xong sẽ thử lại câu lỗi. Câu 6 (18h) lỗi thì bỏ qua và không tính vào điều kiện công bố.
+- Nếu cả 5 lần thử đều hỏng, bot báo "⚠️ Câu n hôm nay tạo lỗi, bot sẽ thử lại ở lượt gửi sau": cron của lượt sau gửi câu của nó xong sẽ thử lại câu lỗi. Câu cuối (18h) lỗi thì bỏ qua và không tính vào điều kiện công bố.
 - Webhook luôn trả 200 cho Telegram (lỗi chỉ được `console.error`) để Telegram không gửi lại update; xem log trong Vercel → Logs.

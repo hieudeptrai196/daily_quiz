@@ -51,6 +51,16 @@ const DAY1 = '2026-09-21';
 const DAY2 = '2026-09-22'; // cùng tuần ISO với DAY1
 const WEEK = weekKey(DAY1);
 
+// Số câu / slot lấy từ TOPICS để harness không phụ thuộc số chủ đề
+const N = TOPICS.length;
+const ALL = TOPICS.map((t) => t.slot);
+const LAST = N - 1;
+const slotOf = (key) => TOPICS.find((t) => t.key === key).slot;
+const DEVOPS = slotOf('devops'); // chủ đề dùng để mô phỏng lỗi
+const DB = slotOf('db');
+const WITHOUT_DEVOPS = ALL.filter((s) => s !== DEVOPS);
+const sortedSlots = async (key) => (await store.smembers(key)).map(Number).sort((a, b) => a - b);
+
 const results = [];
 async function test(name, fn) {
   try {
@@ -87,16 +97,15 @@ async function assertNoLeak(day, slots) {
 // ================= NGÀY 1 =================
 mock.reset();
 
-await test('1. Gửi đủ 6 câu cho một ngày cố định', async () => {
+await test(`1. Gửi đủ ${N} câu cho một ngày cố định`, async () => {
   for (const t of TOPICS) {
     const r = await sendQuestion(t.slot, { day: DAY1 });
     assert.equal(r.ok, true, `slot ${t.slot} phải gửi được`);
     assert.ok(!r.skipped, `slot ${t.slot} không được skip`);
     assert.ok(!('correctIndex' in r), 'kết quả sendQuestion không được chứa đáp án');
   }
-  assert.equal(callsOf('sendPoll').length, 6);
-  const sent = (await store.smembers(keys.sent(DAY1))).map(Number).sort();
-  assert.deepEqual(sent, [0, 1, 2, 3, 4, 5]);
+  assert.equal(callsOf('sendPoll').length, N);
+  assert.deepEqual(await sortedSlots(keys.sent(DAY1)), ALL);
   for (const t of TOPICS) {
     const q = await getQ(DAY1, t.slot);
     assert.ok(q && q.pollId, `thiếu q:${t.slot}`);
@@ -120,7 +129,7 @@ await test('1. Gửi đủ 6 câu cho một ngày cố định', async () => {
     assert.ok(codeMsg.payload.text.includes('&lt;') && codeMsg.payload.text.includes('&amp;'));
   }
   assert.equal(await store.get(keys.revealed(DAY1)), null);
-  await assertNoLeak(DAY1, [0, 1, 2, 3, 4, 5]);
+  await assertNoLeak(DAY1, ALL);
 });
 
 await test('2. Gọi sendQuestion lại cùng slot thì bị skip', async () => {
@@ -159,11 +168,11 @@ await test('4. Chỉ lần vote đầu tiên được ghi; rút vote và đổi 
 });
 
 await test('5. Còn thiếu 1 vote của 1 người thì chưa reveal', async () => {
-  for (let slot = 0; slot < 6; slot++) {
+  for (const slot of ALL) {
     const q = await getQ(DAY1, slot);
     for (let i = 0; i < MEMBERS.length; i++) {
       if (slot === 0 && i === 0) continue; // đã vote ở case 4
-      if (slot === 5 && i === 3) continue; // để dành vote cuối
+      if (slot === LAST && i === 3) continue; // để dành vote cuối
       const r = await vote(MEMBERS[i].id, q.pollId, [pickOption(i, q)]);
       assert.equal(r.recorded, true);
       assert.equal(r.revealed, false);
@@ -171,29 +180,29 @@ await test('5. Còn thiếu 1 vote của 1 người thì chưa reveal', async ()
   }
   assert.equal(await store.get(keys.revealed(DAY1)), null);
   assert.equal(callsOf('stopPoll').length, 0);
-  await assertNoLeak(DAY1, [0, 1, 2, 3, 4, 5]);
+  await assertNoLeak(DAY1, ALL);
   // Message tiến độ được edit tại chỗ
   assert.ok(callsOf('editMessageText').length > 0);
 });
 
 await test('6. Vote cuối cùng thì tự reveal', async () => {
-  const q5 = await getQ(DAY1, 5);
+  const q5 = await getQ(DAY1, LAST);
   const r = await vote(MEMBERS[3].id, q5.pollId, [pickOption(3, q5)]);
   assert.equal(r.recorded, true);
   assert.equal(r.revealed, true);
   assert.ok(await store.get(keys.revealed(DAY1)));
-  assert.equal(callsOf('stopPoll').length, 6);
+  assert.equal(callsOf('stopPoll').length, N);
   const reveal = callsOf('sendMessage').filter((c) => c.payload.text.includes('ĐÁP ÁN NGÀY 21/09'));
   assert.equal(reveal.length, 1);
   assert.ok(!reveal[0].payload.text.includes('(hết giờ)'));
   const allText = callsOf('sendMessage').map((c) => c.payload.text).join('\n');
-  assert.ok(allText.includes('🥇 Hiếu: 6/6'));
+  assert.ok(allText.includes(`🥇 Hiếu: ${N}/${N}`));
   assert.ok(allText.includes(`Tổng tuần ${WEEK}`));
   for (const c of callsOf('sendMessage')) assert.ok(c.payload.text.length <= 4096);
   const score = await store.hgetall(keys.score(WEEK));
   assert.deepEqual(
     Object.fromEntries(MEMBERS.map((m) => [m.id, Number(score[m.id])])),
-    { 1001: 6, 1002: 0, 1003: 6, 1004: 0 },
+    { 1001: N, 1002: 0, 1003: N, 1004: 0 },
   );
 });
 
@@ -206,7 +215,7 @@ await test('7. Vote sau reveal bị bỏ qua; force reveal lần nữa không c�
   assert.equal(r2.revealed, false);
   assert.equal(callsOf('sendMessage').length, before);
   const score = await store.hgetall(keys.score(WEEK));
-  assert.equal(Number(score[MEMBERS[0].id]), 6, 'điểm không được cộng 2 lần');
+  assert.equal(Number(score[MEMBERS[0].id]), N, 'điểm không được cộng 2 lần');
   const r3 = await sendQuestion(1, { day: DAY1 });
   assert.equal(r3.skipped, 'revealed');
 });
@@ -214,7 +223,7 @@ await test('7. Vote sau reveal bị bỏ qua; force reveal lần nữa không c�
 // ================= NGÀY 2: chủ đề devops lỗi =================
 mock.reset();
 
-await test('8. Ngày có GEMINI_MOCK_FAIL_TOPIC=devops: slot 1 lỗi, 3/4 người làm đủ thì chưa reveal', async () => {
+await test('8. Ngày có GEMINI_MOCK_FAIL_TOPIC=devops: câu DevOps lỗi, 3/4 người làm đủ thì chưa reveal', async () => {
   if (REAL) {
     out('   (bỏ qua ép lỗi ở chế độ --real, mô phỏng lỗi bằng mock)');
     process.env.GEMINI_MOCK = '1';
@@ -230,18 +239,18 @@ await test('8. Ngày có GEMINI_MOCK_FAIL_TOPIC=devops: slot 1 lỗi, 3/4 ngư�
     delete process.env.GEMINI_MOCK_FAIL_TOPIC;
     if (REAL) delete process.env.GEMINI_MOCK;
   }
-  assert.deepEqual((await store.smembers(keys.failed(DAY2))).map(Number), [1]);
-  assert.deepEqual((await store.smembers(keys.sent(DAY2))).map(Number).sort(), [0, 2, 3, 4, 5]);
-  assert.equal(await store.get(keys.sendLock(DAY2, 1)), null, 'lock của câu lỗi phải được xoá');
-  const warnMsg = callsOf('sendMessage').find((c) => c.payload.text.includes('⚠️ Câu 2 hôm nay tạo lỗi'));
+  assert.deepEqual(await sortedSlots(keys.failed(DAY2)), [DEVOPS]);
+  assert.deepEqual(await sortedSlots(keys.sent(DAY2)), WITHOUT_DEVOPS);
+  assert.equal(await store.get(keys.sendLock(DAY2, DEVOPS)), null, 'lock của câu lỗi phải được xoá');
+  const warnMsg = callsOf('sendMessage').find((c) => c.payload.text.includes(`⚠️ Câu ${DEVOPS + 1} hôm nay tạo lỗi`));
   assert.ok(warnMsg);
   assert.ok(
     warnMsg.payload.text.includes('<b>Lý do:</b> 5 lần thử đều hỏng: 5× LLM trả về sai định dạng'),
     'phải ghi rõ lý do lỗi',
   );
-  assert.equal(callsOf('sendPoll').length, 5);
+  assert.equal(callsOf('sendPoll').length, N - 1);
 
-  for (const slot of [0, 2, 3, 4, 5]) {
+  for (const slot of WITHOUT_DEVOPS) {
     const q = await getQ(DAY2, slot);
     for (let i = 0; i < 3; i++) {
       const r = await vote(MEMBERS[i].id, q.pollId, [pickOption(i, q)]);
@@ -250,15 +259,15 @@ await test('8. Ngày có GEMINI_MOCK_FAIL_TOPIC=devops: slot 1 lỗi, 3/4 ngư�
   }
   assert.equal(await store.get(keys.revealed(DAY2)), null);
   const progress = callsOf('editMessageText').at(-1)?.payload.text || '';
-  assert.ok(progress.includes('⚠️ Bỏ qua câu: 2'));
-  assert.ok(progress.includes('⏳ Chi: 0/5'));
-  await assertNoLeak(DAY2, [0, 2, 3, 4, 5]);
+  assert.ok(progress.includes(`⚠️ Bỏ qua câu: ${DEVOPS + 1}`));
+  assert.ok(progress.includes(`⏳ Chi: 0/${N - 1}`));
+  await assertNoLeak(DAY2, WITHOUT_DEVOPS);
 });
 
-await test('9. Force reveal (cron 23h) công bố 5 câu', async () => {
+await test(`9. Force reveal (cron 23h) công bố ${N - 1} câu`, async () => {
   const r = await tryReveal(DAY2, { force: true });
   assert.equal(r.revealed, true);
-  assert.equal(r.count, 5);
+  assert.equal(r.count, N - 1);
   const text = callsOf('sendMessage').map((c) => c.payload.text.replace(/<[^>]+>/g, '')).join('\n');
   assert.ok(text.includes('ĐÁP ÁN NGÀY 22/09 (hết giờ)'));
   assert.ok(text.includes('Câu này tạo lỗi, bỏ qua.\nLý do: 5 lần thử đều hỏng'));
@@ -266,7 +275,7 @@ await test('9. Force reveal (cron 23h) công bố 5 câu', async () => {
   const score = await store.hgetall(keys.score(WEEK));
   assert.deepEqual(
     Object.fromEntries(MEMBERS.map((m) => [m.id, Number(score[m.id])])),
-    { 1001: 11, 1002: 0, 1003: 11, 1004: 0 },
+    { 1001: 2 * N - 1, 1002: 0, 1003: 2 * N - 1, 1004: 0 },
   );
   const again = await tryReveal(DAY2, { force: true });
   assert.equal(again.revealed, false);
@@ -291,32 +300,32 @@ mock.reset();
 await test('10. Câu lỗi được thử lại ở lượt gửi sau', async () => {
   await withMock({ GEMINI_MOCK_FAIL_TOPIC: 'devops' }, async () => {
     assert.equal((await sendQuestion(0, { day: DAY3 })).ok, true);
-    assert.equal((await sendQuestion(1, { day: DAY3 })).failed, true);
+    assert.equal((await sendQuestion(DEVOPS, { day: DAY3 })).failed, true);
   });
-  const warn = callsOf('sendMessage').filter((c) => c.payload.text.includes('⚠️ Câu 2 hôm nay tạo lỗi'));
+  const warn = callsOf('sendMessage').filter((c) => c.payload.text.includes(`⚠️ Câu ${DEVOPS + 1} hôm nay tạo lỗi`));
   assert.equal(warn.length, 1);
   assert.ok(warn[0].payload.text.includes('thử lại'));
   // Cron slot 2: gửi câu của nó rồi thử lại câu 2
   await withMock({}, async () => {
-    assert.equal((await sendQuestion(2, { day: DAY3 })).ok, true);
-    const retried = await retryFailedSlots(DAY3, { beforeSlot: 2 });
+    assert.equal((await sendQuestion(DEVOPS + 1, { day: DAY3 })).ok, true);
+    const retried = await retryFailedSlots(DAY3, { beforeSlot: DEVOPS + 1 });
     assert.equal(retried.length, 1);
     assert.equal(retried[0].ok, true);
     assert.equal(retried[0].retried, true);
   });
-  assert.deepEqual((await store.smembers(keys.sent(DAY3))).map(Number).sort(), [0, 1, 2]);
+  assert.deepEqual(await sortedSlots(keys.sent(DAY3)), [0, DEVOPS, DEVOPS + 1]);
   assert.deepEqual(await store.smembers(keys.failed(DAY3)), []);
 });
 
 await test('11. Đề dài hơn poll: gửi đề đầy đủ trong tin nhắn, poll chỉ để chọn', async () => {
   const before = mock.calls.length;
   await withMock({ GEMINI_MOCK_LONG_TOPIC: 'db' }, async () => {
-    assert.equal((await sendQuestion(3, { day: DAY3 })).ok, true);
+    assert.equal((await sendQuestion(DB, { day: DAY3 })).ok, true);
   });
   const calls = mock.calls.slice(before);
   const poll = calls.find((c) => c.method === 'sendPoll');
   const intro = calls.find((c) => c.method === 'sendMessage' && c.payload.text.includes('Bối cảnh dài dòng'));
-  const q = await getQ(DAY3, 3);
+  const q = await getQ(DAY3, DB);
   assert.ok(q.question.length > 280, 'đề mock phải dài hơn giới hạn poll');
   assert.ok(intro, 'phải gửi đề đầy đủ trong tin nhắn');
   assert.ok(intro.payload.text.includes('<b>A.</b>') && intro.payload.text.includes('<b>D.</b>'));
@@ -324,6 +333,18 @@ await test('11. Đề dài hơn poll: gửi đề đầy đủ trong tin nhắn,
   assert.ok(poll.payload.question.includes('ở tin nhắn trên'));
   assert.ok(poll.payload.question.length <= 300);
   assert.equal(poll.payload.reply_parameters.message_id, intro.result.message_id);
+});
+
+await test('12. vercel.json có đủ cron gửi câu đúng giờ của từng chủ đề + cron công bố 23h', async () => {
+  const { readFileSync } = await import('node:fs');
+  const crons = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')).crons;
+  const expected = [
+    ...TOPICS.map((t) => ({ path: `/api/cron/send/${t.slot}`, schedule: `0 ${t.hour - 7} * * *` })),
+    { path: '/api/cron/reveal', schedule: '0 16 * * *' },
+  ];
+  assert.deepEqual(crons, expected);
+  assert.equal(new Set(TOPICS.map((t) => t.hour)).size, N, 'mỗi chủ đề 1 giờ riêng');
+  TOPICS.forEach((t, i) => assert.equal(t.slot, i, 'slot phải bằng vị trí trong TOPICS'));
 });
 
 const failed = results.filter((ok) => !ok).length;

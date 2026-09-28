@@ -1,6 +1,6 @@
 // Chạy TOÀN BỘ luồng bot ở local, không cần deploy: LLM thật + Telegram thật, nhận vote/lệnh bằng
 // long polling (getUpdates) thay cho webhook, trạng thái lưu trong bộ nhớ.
-//   npm run local-bot                      # gửi đủ 6 câu, chỉ mình admin là người chơi
+//   npm run local-bot                      # gửi đủ các câu trong ngày, chỉ mình admin là người chơi
 //   npm run local-bot -- --slots 0,2       # chỉ gửi vài câu (công bố bằng /reveal)
 //   npm run local-bot -- --all-members     # giữ nguyên MEMBERS trong .env
 // Chỉ chạy được khi bot CHƯA set webhook (Telegram không cho getUpdates khi có webhook).
@@ -50,7 +50,7 @@ if (info.url) {
 
 console.log(`Model: ${getModelLabel()} — chat ${getChatId()} — ngày ${dayKey()}`);
 console.log(`Người chơi: ${getMembers().map((m) => m.name).join(', ')}`);
-console.log(`Sẽ gửi câu: ${slots.map((s) => s + 1).join(', ')}${slots.length < 6 ? ' (chưa đủ 6 câu → dùng /reveal để công bố)' : ''}`);
+console.log(`Sẽ gửi câu: ${slots.map((s) => s + 1).join(', ')}${slots.length < TOPICS.length ? " (chưa đủ câu → dùng /reveal để công bố)" : ''}`);
 console.log('Lệnh trong group: /status /reveal /help — Ctrl+C để dừng.\n');
 
 // Bỏ qua update cũ

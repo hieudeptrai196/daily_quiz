@@ -2,7 +2,7 @@
   "name": "daily-quiz-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "Telegram bot gửi 6 câu trắc nghiệm kỹ thuật mỗi ngày (Gemini + Vercel + Upstash Redis)",
+  "description": "Telegram bot gửi câu trắc nghiệm kỹ thuật mỗi giờ trong ngày (Groq + Vercel + Upstash Redis)",
   "type": "module",
   "engines": {
     "node": ">=20"

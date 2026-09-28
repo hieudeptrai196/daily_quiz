@@ -1,7 +1,8 @@
-// Cron gửi câu hỏi: /api/cron/send/0 ... /api/cron/send/5
+// Cron gửi câu hỏi: /api/cron/send/<slot>, slot theo thứ tự TOPICS trong lib/config.js
 // Gửi câu của slot này trước, sau đó dùng thời gian còn lại để thử lại các câu lỗi trước đó trong ngày.
 
 import { isCronAuthorized } from '../../../lib/auth.js';
+import { QUESTIONS_PER_DAY } from '../../../lib/config.js';
 import { retryFailedSlots, sendQuestion } from '../../../lib/quiz.js';
 import { dayKey } from '../../../lib/time.js';
 
@@ -12,8 +13,8 @@ export default async function handler(req, res) {
   if (!isCronAuthorized(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
 
   const slot = Number(req.query.slot);
-  if (!Number.isInteger(slot) || slot < 0 || slot > 5) {
-    return res.status(400).json({ ok: false, error: 'slot phải là 0-5' });
+  if (!Number.isInteger(slot) || slot < 0 || slot >= QUESTIONS_PER_DAY) {
+    return res.status(400).json({ ok: false, error: `slot phải là 0-${QUESTIONS_PER_DAY - 1}` });
   }
 
   try {
