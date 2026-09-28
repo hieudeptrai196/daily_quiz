@@ -342,7 +342,7 @@ await test('12. vercel.json có đủ cron gửi câu đúng giờ của từng 
   const { readFileSync } = await import('node:fs');
   const crons = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')).crons;
   const expected = [
-    ...SLOT_HOURS.map((h, slot) => ({ path: `/api/cron/send/${slot}`, schedule: `0 ${h - 7} * * *` })),
+    ...SLOT_HOURS.map((h, slot) => ({ path: `/api/cron/send/${slot}`, schedule: `0 ${(h - 7 + 24) % 24} * * *` })),
     { path: '/api/cron/reveal', schedule: '0 16 * * *' },
   ];
   assert.deepEqual(crons, expected);

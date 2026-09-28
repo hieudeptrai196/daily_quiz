@@ -1,6 +1,6 @@
 # Daily Quiz Bot 🧠
 
-Telegram bot cho một group 4 người. Mỗi ngày gửi 11 câu trắc nghiệm kỹ thuật (mỗi giờ 1 chủ đề, 8h–18h) (A/B/C/D) do LLM sinh ra (mặc định Groq `openai/gpt-oss-120b`, có thể đổi sang Gemini). Đáp án **chỉ** được công bố khi cả 4 người đã làm đủ các câu, muộn nhất lúc 23:00 (giờ VN).
+Telegram bot cho một group 4 người. Mỗi ngày gửi 11 câu trắc nghiệm kỹ thuật (mỗi giờ 1 chủ đề, 6h–16h) (A/B/C/D) do LLM sinh ra (mặc định Groq `openai/gpt-oss-120b`, có thể đổi sang Gemini). Đáp án **chỉ** được công bố khi cả 4 người đã làm đủ các câu, muộn nhất lúc 23:00 (giờ VN).
 
 - Chạy trên Vercel Serverless Functions (Hobby, miễn phí) + Vercel Cron
 - Lưu trạng thái trên Upstash Redis (free)
@@ -11,22 +11,22 @@ Telegram bot cho một group 4 người. Mỗi ngày gửi 11 câu trắc nghi�
 
 | Giờ | Chủ đề |
 |---|---|
-| 08:00 | 🧮 Thuật toán & CTDL |
-| 09:00 | ☁️ Cloud & Serverless ⇄ 🤖 AI cho Developer |
-| 10:00 | 🛠️ DevOps ⇄ 🐧 Linux & Shell |
-| 11:00 | ⚡ Redis & Caching |
-| 12:00 | 🏗️ Solution / System Design |
-| 13:00 | 📨 Message Queue & Event-driven |
-| 14:00 | 🗄️ Database |
-| 15:00 | 🧪 Testing & Code Quality ⇄ 🌿 Git & Teamwork |
-| 16:00 | 🔐 Backend / Network / Security |
-| 17:00 | 🧩 OOP & Design Pattern ⇄ 🔀 Concurrency & Đa luồng |
-| 18:00 | 🎨 Frontend |
+| 06:00 | 🧮 Thuật toán & CTDL |
+| 07:00 | ☁️ Cloud & Serverless ⇄ 🤖 AI cho Developer |
+| 08:00 | 🛠️ DevOps ⇄ 🐧 Linux & Shell |
+| 09:00 | ⚡ Redis & Caching |
+| 10:00 | 🏗️ Solution / System Design |
+| 11:00 | 📨 Message Queue & Event-driven |
+| 12:00 | 🗄️ Database |
+| 13:00 | 🧪 Testing & Code Quality ⇄ 🌿 Git & Teamwork |
+| 14:00 | 🔐 Backend / Network / Security |
+| 15:00 | 🧩 OOP & Design Pattern ⇄ 🔀 Concurrency & Đa luồng |
+| 16:00 | 🎨 Frontend |
 | 23:00 | Công bố đáp án bắt buộc |
 
 ⇄ = các chủ đề cùng giờ **đổi luân phiên theo ngày** (ngày này chủ đề trái, ngày sau chủ đề phải).
 
-> Cron của Vercel Hobby chỉ chính xác theo giờ: job 08:00 có thể chạy bất kỳ lúc nào từ 08:00 tới 08:59.
+> Cron của Vercel Hobby chỉ chính xác theo giờ: job 06:00 có thể chạy bất kỳ lúc nào từ 06:00 tới 06:59.
 
 ## Cấu trúc
 
@@ -141,10 +141,10 @@ npm run dry-run -- dsa
 Sinh thử 1 câu bằng LLM thật, **ẩn đáp án**. Topic key: `dsa`, `cloud`, `ai`, `devops`, `linux`, `redis`, `design`, `mq`, `db`, `testing`, `git`, `backend`, `oop`, `concurrency`, `frontend` (hoặc số slot 0-10: chủ đề của slot đó hôm nay). Thêm `--show` để xem đáp án và giải thích. Không gửi Telegram, không ghi Redis.
 
 ## Lưu ý
-- **Thêm / bớt / đổi giờ chủ đề**: sửa `TOPICS` trong `lib/config.js`. Mỗi chủ đề có `hour` (giờ VN); nhiều chủ đề cùng `hour` sẽ xoay vòng theo ngày, không tăng số câu. Nếu thêm giờ mới thì thêm cron trong `vercel.json` (cron UTC = giờ VN − 7); `npm run simulate` sẽ báo lỗi nếu 2 file không khớp.
+- **Thêm / bớt / đổi giờ chủ đề**: sửa `TOPICS` trong `lib/config.js`. Mỗi chủ đề có `hour` (giờ VN); nhiều chủ đề cùng `hour` sẽ xoay vòng theo ngày, không tăng số câu. Nếu thêm giờ mới thì thêm cron trong `vercel.json` (cron UTC = giờ VN − 7, âm thì cộng 24: 6h VN = 23h UTC hôm trước); `npm run simulate` sẽ báo lỗi nếu 2 file không khớp.
 - **Cron Hobby có thể lệch trong vòng 1 giờ** so với giờ đặt.
 - **Đừng mở Redis (Upstash console) trong ngày** nếu bạn cũng chơi: đáp án nằm trong key `quiz:<ngày>:q:<slot>`. Code không log đáp án ở bất kỳ đâu trước khi công bố.
 - Mỗi câu tốn 2–10 lần gọi LLM (sinh đề + kiểm tra chéo, tối đa 5 lần thử trong 240 giây). Free tier của Groq giới hạn ~8000 token/phút cho `gpt-oss-120b`; bot tự đợi theo `retry-after` khi bị 429, xoay sang key khác, rồi sang model dự phòng. Quota free: 8K token/phút và 200K token/ngày cho mỗi model, tính theo tài khoản Groq.
 - Đề dài hơn giới hạn poll của Telegram vẫn dùng được: bot gửi đề + code + 4 đáp án trong 1 tin nhắn, poll chỉ để chọn A/B/C/D.
-- Nếu cả 5 lần thử đều hỏng, bot báo "⚠️ Câu n hôm nay tạo lỗi, bot sẽ thử lại ở lượt gửi sau": cron của lượt sau gửi câu của nó xong sẽ thử lại câu lỗi. Câu cuối (18h) lỗi thì bỏ qua và không tính vào điều kiện công bố.
+- Nếu cả 5 lần thử đều hỏng, bot báo "⚠️ Câu n hôm nay tạo lỗi, bot sẽ thử lại ở lượt gửi sau": cron của lượt sau gửi câu của nó xong sẽ thử lại câu lỗi. Câu cuối (16h) lỗi thì bỏ qua và không tính vào điều kiện công bố.
 - Webhook luôn trả 200 cho Telegram (lỗi chỉ được `console.error`) để Telegram không gửi lại update; xem log trong Vercel → Logs.
